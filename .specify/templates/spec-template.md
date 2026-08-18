@@ -93,6 +93,11 @@
 - **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
 - **FR-005**: System MUST [behavior, e.g., "log all security events"]
 
+Specs that add or change MCP tools MUST also cover: 2020-12 input
+schema (including `if`/`then`, `oneOf`, and/or `$defs` where arguments
+are conditional), agentgateway rejection of invalid payloads as JSON-RPC
+`-32602`, and LangGraph bounded repair of those errors.
+
 *Example of marking unclear requirements:*
 
 - **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
@@ -116,6 +121,18 @@
 - **SC-002**: [Measurable metric, e.g., "System handles 1000 concurrent users without degradation"]
 - **SC-003**: [User satisfaction metric, e.g., "90% of users successfully complete primary task on first attempt"]
 - **SC-004**: [Business metric, e.g., "Reduce support tickets related to [X] by 50%"]
+
+## Constitution Constraints *(mandatory)*
+
+<!--
+  ACTION REQUIRED: Confirm the feature stays inside `.specify/memory/constitution.md`.
+  Do not weaken a MUST. If the feature cannot comply, stop and amend the constitution.
+-->
+
+- **MCP 2026-07-28**: Feature MUST use stateless Streamable HTTP. MUST NOT require `Mcp-Session-Id` affinity or a sticky `initialize` session before `tools/call`.
+- **JSON Schema 2020-12**: FastMCP tool inputs MUST be 2020-12 schemas. Conditional args MUST use `if`/`then`; exclusive shapes MUST use `oneOf`; shared fragments MUST use `$defs`.
+- **Validation resilience**: JSON-RPC `-32602` from agentgateway MUST be a recoverable agent path with bounded retries that change arguments. Identical invalid retries are out of spec.
+- **Layering**: Agent orchestration, proxy governance, and MCP tool execution MUST remain separate. Tool traffic MUST pass through agentgateway.
 
 ## Assumptions
 

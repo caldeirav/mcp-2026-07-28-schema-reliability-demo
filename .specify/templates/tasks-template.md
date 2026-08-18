@@ -21,10 +21,9 @@ description: "Task list template for feature implementation"
 
 ## Path Conventions
 
-- **Single project**: `src/`, `tests/` at repository root
-- **Web app**: `backend/src/`, `frontend/src/`
-- **Mobile**: `api/src/`, `ios/src/` or `android/src/`
-- Paths shown below assume single project - adjust based on plan.md structure
+- **This project (constitution IV)**: `src/agent/` (LangGraph), `src/gateway/` (agentgateway), `src/mcp/` (FastMCP + JSON Schema 2020-12); tests under `tests/contract/`, `tests/integration/`, `tests/unit/`
+- **Single project fallback**: `src/`, `tests/` at repository root — still MUST map to the three layers
+- Paths shown below assume the three-layer layout — adjust names to match plan.md, not the layer split
 
 <!--
   ============================================================================
@@ -61,14 +60,14 @@ description: "Task list template for feature implementation"
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-Examples of foundational tasks (adjust based on your project):
+Examples of foundational tasks (adjust based on your project; include constitution gates):
 
-- [ ] T004 Setup database schema and migrations framework
-- [ ] T005 [P] Implement authentication/authorization framework
-- [ ] T006 [P] Setup API routing and middleware structure
-- [ ] T007 Create base models/entities that all stories depend on
-- [ ] T008 Configure error handling and logging infrastructure
-- [ ] T009 Setup environment configuration management
+- [ ] T004 [P] Add agentgateway stateless MCP config (`statefulMode: stateless`) in src/gateway/
+- [ ] T005 [P] Scaffold FastMCP server and JSON Schema 2020-12 `$defs` layout in src/mcp/
+- [ ] T006 [P] Scaffold LangGraph graph with a dedicated `-32602` repair node in src/agent/
+- [ ] T007 Define shared MCP 2026-07-28 request `_meta` and required HTTP headers
+- [ ] T008 Configure error handling that distinguishes JSON-RPC `-32602` from other faults
+- [ ] T009 Setup environment configuration for agent, gateway, and MCP as separate processes
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -84,8 +83,8 @@ Examples of foundational tasks (adjust based on your project):
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T010 [P] [US1] Contract test for tool JSON Schema 2020-12 (valid + must-fail payloads) in tests/contract/test_[name].py
+- [ ] T011 [P] [US1] Integration test for agentgateway `-32602` then LangGraph repair in tests/integration/test_[name].py
 
 ### Implementation for User Story 1
 
@@ -151,12 +150,12 @@ Examples of foundational tasks (adjust based on your project):
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] TXXX [P] Documentation updates in docs/
-- [ ] TXXX Code cleanup and refactoring
-- [ ] TXXX Performance optimization across all stories
-- [ ] TXXX [P] Additional unit tests (if requested) in tests/unit/
-- [ ] TXXX Security hardening
-- [ ] TXXX Run quickstart.md validation
+- [ ] TXXX [P] Documentation updates in docs/ and README.md
+- [ ] TXXX Code cleanup and refactoring (no cross-layer leaks)
+- [ ] TXXX [P] Protocol gate: confirm no `Mcp-Session-Id` affinity in tests/contract/
+- [ ] TXXX [P] Additional unit tests (if requested) in tests/unit/ per layer
+- [ ] TXXX Schema and layer gates: valid/invalid fixtures plus no undocumented gateway bypass
+- [ ] TXXX Run quickstart.md validation including a `-32602` repair demonstration
 
 ---
 

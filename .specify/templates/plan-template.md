@@ -39,8 +39,29 @@
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+*Source: `.specify/memory/constitution.md` v1.0.0*
 
-[Gates determined based on constitution file]
+**I. MCP 2026-07-28 Stateless Compliance**
+- [ ] Design uses MCP 2026-07-28 Streamable HTTP only (no session affinity / `Mcp-Session-Id`)
+- [ ] Per-request `_meta` (protocol version + client capabilities) and `Mcp-Method` / `Mcp-Name` / protocol-version headers are specified
+- [ ] agentgateway remains in `statefulMode: stateless`
+
+**II. JSON Schema 2020-12 Tool Validation**
+- [ ] Every FastMCP tool ships a JSON Schema 2020-12 input schema (`$schema` dialect 2020-12)
+- [ ] Conditional args use `if`/`then`; exclusive shapes use `oneOf`; shared fragments use `$defs`
+- [ ] No prose-only constraints that the schema cannot enforce
+
+**III. LangGraph Validation-Error Resilience**
+- [ ] JSON-RPC `-32602` from agentgateway is a recoverable graph path with a bounded retry limit
+- [ ] Retry MUST change arguments using the validation error payload (identical invalid payloads are forbidden)
+- [ ] Non-validation JSON-RPC errors are not classified as schema failures
+
+**IV. Layered Separation of Concerns**
+- [ ] Agent orchestration, proxy governance, and MCP tool execution remain separate packages/modules
+- [ ] No layer implements another layer's responsibilities (policy, repair, or tool logic)
+- [ ] Tool traffic MUST pass through agentgateway (no undocumented bypass)
+
+Unjustified failures FAIL this gate. Record accepted deviations only in Complexity Tracking.
 
 ## Project Structure
 
@@ -59,49 +80,25 @@ specs/[###-feature]/
 ### Source Code (repository root)
 <!--
   ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
+  for this feature. Principle IV requires three independently testable layers:
+  agent orchestration, proxy governance, and MCP tool execution. The delivered
+  plan MUST preserve that separation (folder names may differ).
 -->
 
 ```text
-# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
 src/
-├── models/
-├── services/
-├── cli/
-└── lib/
+├── agent/                 # LangGraph orchestration and -32602 repair
+├── gateway/               # agentgateway config (stateless MCP)
+└── mcp/                   # FastMCP tools + JSON Schema 2020-12
 
 tests/
-├── contract/
-├── integration/
-└── unit/
-
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
-backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
-
-frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
-
-# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
-
-ios/ or android/
-└── [platform-specific structure: feature modules, UI flows, platform tests]
+├── contract/              # tool schemas, MCP 2026-07-28 request shape
+├── integration/           # agent → gateway → tool, including -32602 repair
+└── unit/                  # per-layer tests (bypass of gateway MUST be documented)
 ```
 
 **Structure Decision**: [Document the selected structure and reference the real
-directories captured above]
+directories captured above. MUST map to the three constitution layers.]
 
 ## Complexity Tracking
 
