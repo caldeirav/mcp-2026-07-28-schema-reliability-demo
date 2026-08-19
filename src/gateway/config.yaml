@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+#
+# Standalone agentgateway: LLM + MCP on 127.0.0.1:8080
+# MCP backends are FastMCP on loopback; agents MUST NOT call :8001/:8002.
+
+frontendPolicies:
+  tracing:
+    host: 127.0.0.1:4317
+    protocol: grpc
+    randomSampling: "1.0"
+    resources:
+      service.name: '"banking-fund-transfer-gateway"'
+
+gateways:
+  default:
+    port: 8080
+    protocol: HTTP
+
+llm:
+  gateways: [default]
+  models:
+    - name: "*"
+      provider:
+        custom:
+          formats:
+            - type: completions
+      params:
+        apiKey: "lm-studio"
+        baseUrl: "http://127.0.0.1:1234/v1"
+
+routes:
+  - name: mcp-strict
+    gateways: [default]
+    matches:
+      - path:
+          pathPrefix: /mcp/strict
+        headers:
+          - name: mcp-method
+            value:
+              regex: ".+"
+          - name: mcp-name
+            value:
+              regex: ".+"
+    policies:
+      mcpAuthorization:
+        rules:
+          - 'mcp.tool.name == "transfer_funds"'
+          - 'request.headers["mcp-method"] != "" && request.headers["mcp-name"] != ""'
+    backends:
+      - mcp:
+          statefulMode: stateless
+          targets:
+            - name: banking-strict
+              mcp:
+                host: http://127.0.0.1:8001/mcp
+  - name: mcp-legacy
+    gateways: [default]
+    matches:
+      - path:
+          pathPrefix: /mcp/legacy
+        headers:
+          - name: mcp-method
+            value:
+              regex: ".+"
+          - name: mcp-name
+            value:
+              regex: ".+"
+    policies:
+      mcpAuthorization:
+        rules:
+          - 'mcp.tool.name == "transfer_funds"'
+          - 'request.headers["mcp-method"] != "" && request.headers["mcp-name"] != ""'
+    backends:
+      - mcp:
+          statefulMode: stateless
+          targets:
+            - name: banking-legacy
+              mcp:
+                host: http://127.0.0.1:8002/mcp

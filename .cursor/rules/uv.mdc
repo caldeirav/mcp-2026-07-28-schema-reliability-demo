@@ -1,0 +1,26 @@
+---
+description: Use uv for all Python package and environment management
+alwaysApply: true
+---
+
+# Python package management: uv only
+
+This repo is a `uv` project (`pyproject.toml` + `uv.lock`). Do not use pip, poetry, conda, or bare `python -m venv`.
+
+## Commands
+
+| Task | Command |
+|------|---------|
+| Install / sync the lockfile | `uv sync` |
+| Add a runtime dependency | `uv add <package>` |
+| Add a dev dependency | `uv add --dev <package>` |
+| Remove a dependency | `uv remove <package>` |
+| Run Python, pytest, or a module | `uv run …` |
+| Run a one-off tool | `uvx <tool>` |
+
+## Rules
+
+- Prefer `uv add` / `uv remove` over hand-editing `pyproject.toml` dependency lists, then keep `uv.lock` in sync (`uv lock` or `uv sync`).
+- Scripts and docs must invoke Python as `uv run python` / `uv run pytest`, never system `python` or `.venv/bin/python` directly.
+- Commit `uv.lock`. Do not delete it or add it to `.gitignore`.
+- Do not create `requirements.txt` or a second virtualenv (`venv/`, `env/`) unless the user explicitly asks.

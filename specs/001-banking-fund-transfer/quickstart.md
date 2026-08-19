@@ -5,7 +5,7 @@ Laptop demo. Loopback only. Does not start LM Studio or Jaeger.
 ## Prerequisites
 
 - Python 3.12+
-- `uv` (or pip)
+- `uv`
 - LM Studio serving `qwen/qwen3.8-27b` at `http://127.0.0.1:1234/v1`
 - OTLP collector (e.g. Jaeger all-in-one) at `http://127.0.0.1:4317`
 - Network once to install the agentgateway binary
