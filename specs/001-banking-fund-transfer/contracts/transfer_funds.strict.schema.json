@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://thinkinginsidethebox.local/schemas/transfer_funds.strict.json",
+  "title": "transfer_funds",
+  "type": "object",
+  "unevaluatedProperties": false,
+  "$defs": {
+    "amount": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "multipleOf": 0.01
+    },
+    "account": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9]{6,34}$"
+    },
+    "iban": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}[0-9]{2}[A-Z0-9]{1,30}$"
+    },
+    "swift": {
+      "type": "string",
+      "pattern": "^[A-Z0-9]{8}([A-Z0-9]{3})?$"
+    },
+    "compliance_approval_code": {
+      "const": "CMP-DEMO-2026"
+    },
+    "internal": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "transfer_type": { "const": "internal" },
+        "source_account": { "$ref": "#/$defs/account" },
+        "destination_account": { "$ref": "#/$defs/account" },
+        "amount": { "$ref": "#/$defs/amount" },
+        "compliance_approval_code": { "$ref": "#/$defs/compliance_approval_code" }
+      },
+      "required": ["transfer_type", "source_account", "destination_account", "amount"]
+    },
+    "wire": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "transfer_type": { "const": "wire" },
+        "source_account": { "$ref": "#/$defs/account" },
+        "iban": { "$ref": "#/$defs/iban" },
+        "swift": { "$ref": "#/$defs/swift" },
+        "amount": { "$ref": "#/$defs/amount" },
+        "compliance_approval_code": { "$ref": "#/$defs/compliance_approval_code" }
+      },
+      "required": ["transfer_type", "source_account", "iban", "swift", "amount"]
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/internal" },
+    { "$ref": "#/$defs/wire" }
+  ],
+  "if": {
+    "type": "object",
+    "required": ["amount"],
+    "properties": {
+      "amount": { "type": "number", "exclusiveMinimum": 10000 }
+    }
+  },
+  "then": {
+    "required": ["compliance_approval_code"]
+  }
+}
