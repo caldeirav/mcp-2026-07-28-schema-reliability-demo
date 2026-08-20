@@ -1,7 +1,11 @@
 # yaml-language-server: $schema=https://agentgateway.dev/schema/config
 #
 # Standalone agentgateway: LLM + MCP on 127.0.0.1:8080
+# Admin UI: http://127.0.0.1:15000/ui/
 # MCP backends are FastMCP on loopback; agents MUST NOT call :8001/:8002.
+
+config:
+  adminAddr: 127.0.0.1:15000
 
 frontendPolicies:
   tracing:
@@ -28,24 +32,30 @@ llm:
         apiKey: "lm-studio"
         baseUrl: "http://127.0.0.1:1234/v1"
 
+# CORS is required so the Admin UI Tool Playground (origin :15000) can call :8080.
+# Path matches are prefix-only so the playground can initialize without L7 headers;
+# the LangGraph client still sends Mcp-Method / Mcp-Name on every tools/call.
+# CEL allows discovery (empty tool name) and transfer_funds only.
+
 routes:
   - name: mcp-strict
     gateways: [default]
     matches:
       - path:
           pathPrefix: /mcp/strict
-        headers:
-          - name: mcp-method
-            value:
-              regex: ".+"
-          - name: mcp-name
-            value:
-              regex: ".+"
     policies:
+      cors:
+        allowOrigins:
+          - "http://127.0.0.1:15000"
+          - "http://localhost:15000"
+        allowHeaders:
+          - "*"
+        exposeHeaders:
+          - "Mcp-Session-Id"
+          - "Mcp-Protocol-Version"
       mcpAuthorization:
         rules:
-          - 'mcp.tool.name == "transfer_funds"'
-          - 'request.headers["mcp-method"] != "" && request.headers["mcp-name"] != ""'
+          - 'mcp.tool.name == "transfer_funds" || mcp.tool.name == ""'
     backends:
       - mcp:
           statefulMode: stateless
@@ -58,18 +68,19 @@ routes:
     matches:
       - path:
           pathPrefix: /mcp/legacy
-        headers:
-          - name: mcp-method
-            value:
-              regex: ".+"
-          - name: mcp-name
-            value:
-              regex: ".+"
     policies:
+      cors:
+        allowOrigins:
+          - "http://127.0.0.1:15000"
+          - "http://localhost:15000"
+        allowHeaders:
+          - "*"
+        exposeHeaders:
+          - "Mcp-Session-Id"
+          - "Mcp-Protocol-Version"
       mcpAuthorization:
         rules:
-          - 'mcp.tool.name == "transfer_funds"'
-          - 'request.headers["mcp-method"] != "" && request.headers["mcp-name"] != ""'
+          - 'mcp.tool.name == "transfer_funds" || mcp.tool.name == ""'
     backends:
       - mcp:
           statefulMode: stateless
