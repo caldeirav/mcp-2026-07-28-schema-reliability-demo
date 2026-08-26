@@ -1,0 +1,13 @@
+# Jaeger all-in-one for gateway OTLP traces. Loopback only.
+# UI: http://127.0.0.1:16686  OTLP gRPC: 127.0.0.1:4317
+# ./scripts/run_jaeger.sh prefers Podman (`podman run`); this file is the same spec.
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:1.76.0
+    container_name: mcp-demo-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "127.0.0.1:16686:16686"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"

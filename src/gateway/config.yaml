@@ -1,0 +1,116 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+config:
+  adminAddr: 127.0.0.1:15000
+frontendPolicies:
+  tracing:
+    host: 127.0.0.1:4317
+    protocol: grpc
+    randomSampling: '1.0'
+    resources:
+      service.name: '"banking-fund-transfer-gateway"'
+gateways:
+  default:
+    port: 8080
+    protocol: HTTP
+llm:
+  gateways:
+  - default
+  models:
+  - name: qwen/qwen3.8-27b
+    provider:
+      custom:
+        formats:
+        - type: completions
+    params:
+      apiKey: lm-studio
+      model: qwen/qwen3.8-27b
+      baseUrl: http://127.0.0.1:1234/v1
+  - name: '*'
+    provider:
+      custom:
+        formats:
+        - type: completions
+    params:
+      apiKey: lm-studio
+      baseUrl: http://127.0.0.1:1234/v1
+mcp:
+  gateways:
+  - default
+  statefulMode: stateless
+  prefixMode: always
+  policies:
+    cors:
+      allowOrigins:
+      - http://127.0.0.1:15000
+      - http://localhost:15000
+      allowHeaders:
+      - '*'
+      exposeHeaders:
+      - Mcp-Session-Id
+      - Mcp-Protocol-Version
+      allowMethods:
+      - GET
+      - POST
+    mcpAuthorization:
+      rules:
+      - mcp.tool.name.contains("transfer_funds") || mcp.tool.name == ""
+  targets:
+  - name: banking-strict
+    mcp:
+      host: http://127.0.0.1:8001/mcp
+  - name: banking-legacy
+    mcp:
+      host: http://127.0.0.1:8002/mcp
+routes:
+- name: mcp-strict
+  gateways:
+  - default
+  matches:
+  - path:
+      pathPrefix: /mcp/strict
+  policies:
+    cors:
+      allowOrigins:
+      - http://127.0.0.1:15000
+      - http://localhost:15000
+      allowHeaders:
+      - '*'
+      exposeHeaders:
+      - Mcp-Session-Id
+      - Mcp-Protocol-Version
+    mcpAuthorization:
+      rules:
+      - mcp.tool.name == "transfer_funds" || mcp.tool.name == ""
+  backends:
+  - mcp:
+      statefulMode: stateless
+      targets:
+      - name: banking-strict
+        mcp:
+          host: http://127.0.0.1:8001/mcp
+- name: mcp-legacy
+  gateways:
+  - default
+  matches:
+  - path:
+      pathPrefix: /mcp/legacy
+  policies:
+    cors:
+      allowOrigins:
+      - http://127.0.0.1:15000
+      - http://localhost:15000
+      allowHeaders:
+      - '*'
+      exposeHeaders:
+      - Mcp-Session-Id
+      - Mcp-Protocol-Version
+    mcpAuthorization:
+      rules:
+      - mcp.tool.name == "transfer_funds" || mcp.tool.name == ""
+  backends:
+  - mcp:
+      statefulMode: stateless
+      targets:
+      - name: banking-legacy
+        mcp:
+          host: http://127.0.0.1:8002/mcp

@@ -1,4 +1,170 @@
-# mcp-2026-07-28-schema-reliability-demo
-Eliminate tool-calling failures in small local models. Demonstrates self-validating MCP tools with JSON Schema 2020-12 conditional logic, agentgateway edge validation, and LangGraph error recovery.
+# MCP 2026 tool reliability demo
 
-Governing principles (MCP 2026-07-28 stateless compliance, JSON Schema 2020-12 tool contracts, LangGraph `-32602` repair, and layered agent/gateway/tool separation) live in [`.specify/memory/constitution.md`](.specify/memory/constitution.md).
+A runnable comparison of **MCP as it is usually wired in a single application** versus **MCP 2026-07-28 as it has to behave behind an enterprise gateway**.
+
+The workload is a simulated `transfer_funds` tool. The same agent, model, and prompt hit two contracts: a description-only (legacy) schema that is typical of early MCP integrations, and a JSON Schema 2020-12 (strict) schema enforced at [agentgateway](https://agentgateway.dev/). Illegal transfers are never recorded. Run locally on loopback; LM Studio is assumed already running. Jaeger is started by this repo.
+
+## 1. Background: development-time MCP vs MCP 2026-07-28 at scale
+
+During development, an MCP client and a single tool server are often the entire topology. A session-oriented Streamable HTTP flow (`initialize` / `initialized`, then `Mcp-Session-Id`) is acceptable: one process, one backend, no need for the proxy to classify traffic. Tool arguments are documented in natural language on `inputSchema`. If the model is large enough, or you iterate in the agent, that is enough to ship a prototype.
+
+That topology does not survive horizontal scale:
+
+- **Session affinity.** Protocol-level sessions force sticky routing or a distributed session store so consecutive calls land on the same replica. Round-robin L7 load balancing is not an option.
+- **Opaque JSON-RPC.** All methods share one HTTP path. Without `Mcp-Method` / `Mcp-Name`, a gateway must parse bodies to authorize, rate-limit, or split traffic by tool—an operation that does not compose with TLS termination and compression.
+- **Contracts that only the model reads.** JSON Schema Draft-07 subsets (and prose-only constraints) cannot express `if`/`then`, exclusive shapes (`oneOf`), or shared `$defs`. Invalid arguments either reach application code or fail without a structured error the agent can consume.
+
+MCP **2026-07-28** (release candidate) is the protocol change that matches how HTTP APIs are already operated:
+
+- Requests are **stateless**. Protocol version, client info, and capabilities travel per call in `_meta`. There is no `Mcp-Session-Id` affinity; `server/discover` replaces a sticky handshake for capability fetch.
+- Streamable HTTP requires **L7 headers** (`Mcp-Method`, `Mcp-Name`, protocol version) so ingress can route and apply policy without unmarshalling JSON-RPC. Header/body mismatch is a reject.
+- Tool `inputSchema` / `outputSchema` are full **JSON Schema 2020-12**. Conditionals, composition, and `$ref` are first-class; gateways can validate arguments and return JSON-RPC `-32602` (invalid params) before the tool runs.
+
+This repository does not implement a mesh. It isolates those protocol and contract differences on one host so you can measure them.
+
+## 2. The problem
+
+In a single-app integration, tool reliability is often treated as a **model quality** issue: better prompting, a larger model, more retries. That hides two independent failures that appear as soon as a gateway and more than one replica exist.
+
+**Contract failure.** Models emit JSON; they do not type-check against your domain. Conditional fields (compliance code only when `amount > 10000`), discriminators (`internal` vs `wire`), and identifier patterns are routinely omitted or mixed. If those rules live only in descriptions, the server may accept the object and fail later, or return an unstructured tool error. The agent cannot distinguish “invalid params” from “business reject,” and it has no payload to repair against. Retrying the same arguments is wasted work; recording the transfer would be a production incident.
+
+**Topology failure.** A session-bound MCP server behind a generic reverse proxy cannot be scaled or governed like the rest of the HTTP fleet. Validation, authorization, and tracing get reimplemented in the agent or in each tool. At enterprise scale those belong at the data plane.
+
+The demo workload is chosen because it encodes both: a high-value internal transfer requires `compliance_approval_code` const `CMP-DEMO-2026`; wire transfers require a different object shape (IBAN/SWIFT patterns, not internal destination accounts).
+
+## 3. The approach
+
+Keep **orchestration, governance, and execution** in separate processes. The agent never calls FastMCP on `:8001` / `:8002`.
+
+| Process | Responsibility |
+|---------|----------------|
+| LangGraph agent | Tool selection and a bounded repair loop that treats `-32602` as recoverable. Identical invalid payloads are forbidden. Opaque (non-validation) errors do not start repair. |
+| agentgateway `:8080` | LLM reverse proxy to LM Studio (`/v1`, model `qwen/qwen3.8-27b`) and MCP reverse proxy. Native `mcp:` targets (`banking-strict`, `banking-legacy`) plus agent routes `/mcp/strict` and `/mcp/legacy`. Stateless MCP (`statefulMode: stateless`). CEL allows `transfer_funds`. Admin UI on `:15000`. OTLP from this process is the source of truth for traces. |
+| FastMCP | Two servers, one tool name. Strict loads JSON Schema 2020-12 (`if`/`then`, `oneOf`, `$defs`). Legacy loads a weak, description-only schema and returns an opaque reject without recording. |
+
+Comparison is a **runtime parameter**, not configuration: `./scripts/compare.sh {legacy\|strict\|both}`. `.env` holds endpoints, model, repair budget, and gateway version only.
+
+On **legacy**, an underspecified high-value call is not recorded; the error is opaque; repair does not run. On **strict**, the same class of payload is rejected as `-32602` with a named schema violation; the agent copies `CMP-DEMO-2026` from the user prompt (it must not invent a code) and retries with a changed fingerprint. That is the delta between “schema as documentation for one app” and “schema as an edge contract the agent can close.”
+
+## 4. Run it
+
+### Prerequisites
+
+- Python 3.12+ and [`uv`](https://docs.astral.sh/uv/)
+- [LM Studio](https://lmstudio.ai/) serving `qwen/qwen3.8-27b` at `http://127.0.0.1:1234/v1`
+- [Podman](https://podman.io/) (for Jaeger all-in-one). `./scripts/run_jaeger.sh` prefers `podman` and falls back to `docker` if that is what is on PATH. On macOS the script starts the Podman Linux VM if it is stopped (`podman machine start`).
+- Network once for `./scripts/install_agentgateway.sh`
+
+Loopback only.
+
+### Install and configure
+
+```bash
+git clone https://github.com/caldeirav/mcp-2026-07-28-schema-reliability-demo.git
+cd mcp-2026-07-28-schema-reliability-demo
+uv sync
+./scripts/install_agentgateway.sh
+cp .env.example .env
+```
+
+```text
+MODEL_NAME=qwen/qwen3.8-27b
+LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1
+AGENTGATEWAY_URL=http://127.0.0.1:8080
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4317
+AGENTGATEWAY_VERSION=1.4.1
+REPAIR_BUDGET=3
+```
+
+Do not set `CONTRACT_MODE`. Package changes: `uv add` / `uv remove`, then `uv sync`.
+
+### Processes
+
+| Bind | Process |
+|------|---------|
+| `127.0.0.1:1234` | LM Studio (operator) |
+| `127.0.0.1:8080` | agentgateway data plane (`src/gateway/config.yaml`) |
+| `127.0.0.1:15000/ui/` | agentgateway Admin UI |
+| `127.0.0.1:8001/mcp` | FastMCP strict |
+| `127.0.0.1:8002/mcp` | FastMCP legacy |
+| `127.0.0.1:4317` | Jaeger OTLP gRPC (`./scripts/run_jaeger.sh`) |
+| `127.0.0.1:16686` | Jaeger UI |
+
+```bash
+./scripts/run_jaeger.sh       # :4317 OTLP + UI :16686
+./scripts/run_mcp.sh          # :8001 and :8002
+./scripts/run_gateway.sh      # :8080 + Admin UI :15000
+./scripts/compare.sh both     # or legacy | strict
+```
+
+Open [http://127.0.0.1:15000/ui/](http://127.0.0.1:15000/ui/) after the gateway starts. The UI is served on the admin listener, not on `:8080`.
+
+### Watch both contracts in the Admin UI
+
+The committed `src/gateway/config.yaml` already enables LLM and MCP on `default` (`:8080`). First open of the Admin UI should not require **Enable MCP** or adding a model.
+
+The Tool Playground is the live view of the same two MCP backends the agent uses. CORS is already set so the browser at `:15000` can call `:8080`.
+
+1. **Gateway Overview** — LLM and MCP should both show **Enabled**. MCP overview should list **2 configured servers**. Confirm routes `mcp-strict` (`/mcp/strict`) and `mcp-legacy` (`/mcp/legacy`).
+
+   ![Gateway Overview with LLM and MCP enabled and two MCP servers](img/ui-overview.png)
+
+2. **LLM → Models** — `qwen/qwen3.8-27b` (custom, LM Studio) plus the `*` wildcard. **Client Setup** should show base URL `http://127.0.0.1:8080/v1` (what LangGraph uses).
+
+   ![LLM Models listing qwen/qwen3.8-27b and a wildcard custom provider](img/ui-models.png)
+
+3. **MCP → Servers** — `banking-strict` (`http://127.0.0.1:8001/mcp`) and `banking-legacy` (`http://127.0.0.1:8002/mcp`), both ready.
+
+   ![MCP Servers listing banking-strict on :8001 and banking-legacy on :8002](img/ui-servers.png)
+
+4. **MCP → Tool Playground**
+   - If you see **Browser access is not allowed**, click **Apply CORS** (the committed config already allows `http://127.0.0.1:15000` and `http://localhost:15000`).
+   - Select route **mcp-strict**, **Initialize**, confirm `transfer_funds` is listed. The federated `/mcp` listener prefixes tool names (`banking-strict_transfer_funds` / `banking-legacy_transfer_funds`); the agent still calls unprefixed `transfer_funds` on `/mcp/strict` and `/mcp/legacy`.
+   - Call `transfer_funds` with a high-value internal payload **without** a compliance code:
+
+     ```json
+     {
+       "transfer_type": "internal",
+       "source_account": "ACC1001",
+       "destination_account": "ACC2002",
+       "amount": 12500
+     }
+     ```
+
+     Strict should fail validation (schema / invalid params): HTTP 200, `isError`, named missing `compliance_approval_code`.
+
+     ![Strict playground reject: amount 12500 without a compliance code](img/ui-playground-strict-reject.png)
+
+     Repeat the same JSON on **mcp-legacy**: opaque `transfer rejected`, nothing recorded.
+
+     ![Legacy playground opaque reject for the same high-value payload](img/ui-playground-legacy-opaque.png)
+
+   - Call again on **mcp-strict** with `"compliance_approval_code": "CMP-DEMO-2026"`. That call should succeed and return a `transfer_id`.
+
+     ![Strict playground success after CMP-DEMO-2026 is supplied](img/ui-playground-strict-ok.png)
+
+5. Leave the UI open and run `./scripts/compare.sh both` in a terminal. Agent traffic uses the same routes; stdout is the labeled comparison. Playground calls and agent calls share the data plane on `:8080`.
+
+### Expected output
+
+```text
+[legacy] error_kind=opaque repair_attempts=0 recorded=no transfer_id=-
+  1. POST /mcp/legacy  http=200  rpc=-  args={transfer_type=internal, source_account=ACC1001, destination_account=ACC2002, amount=12500}  resp="transfer rejected"
+[strict] error_kind=none repair_attempts=1 recorded=yes transfer_id=…
+  1. POST /mcp/strict  http=200  rpc=-32602  args={transfer_type=internal, source_account=ACC1001, destination_account=ACC2002, amount=12500}  resp="(root): 'compliance_approval_code' is a required property"
+  2. POST /mcp/strict  http=200  rpc=-  args={transfer_type=internal, source_account=ACC1001, destination_account=ACC2002, amount=12500, compliance_approval_code=CMP-DEMO-2026}  resp=ok transfer_id=…
+```
+
+![compare.sh both: legacy opaque reject versus strict -32602 then repair](img/cli-compare-both.png)
+
+The first `tools/call` omits `compliance_approval_code` even if the model copied `CMP-DEMO-2026` from the prompt. That is the underspecified payload the two contracts are meant to distinguish: legacy stays opaque and does not record; strict returns `-32602` and the agent copies the code from the prompt.
+
+Gateway traces go to Jaeger (`frontendPolicies.tracing` → `:4317`). After `./scripts/compare.sh both`, open [http://127.0.0.1:16686](http://127.0.0.1:16686), service `banking-fund-transfer-gateway`, and confirm spans for `/mcp/legacy`, `/mcp/strict`, and `/v1/chat/completions`. The Admin UI does not replace Jaeger.
+
+![Jaeger compare view of POST /mcp/legacy versus POST /mcp/strict](img/jaeger-routes.png)
+
+### Tests without the model
+
+```bash
+uv run pytest tests/contract tests/unit tests/integration
+```

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://thinkinginsidethebox.local/schemas/transfer_funds.legacy.json",
+  "title": "transfer_funds (legacy description-only)",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "transfer_type": {
+      "type": "string",
+      "description": "Use internal for same-bank transfers or wire for international transfers."
+    },
+    "source_account": {
+      "type": "string",
+      "description": "Source account identifier."
+    },
+    "destination_account": {
+      "type": "string",
+      "description": "Destination account for internal transfers."
+    },
+    "iban": {
+      "type": "string",
+      "description": "Destination IBAN for wire transfers."
+    },
+    "swift": {
+      "type": "string",
+      "description": "Destination SWIFT/BIC for wire transfers."
+    },
+    "amount": {
+      "type": "number",
+      "description": "Transfer amount in USD. Amounts over 10000 need a compliance approval code."
+    },
+    "compliance_approval_code": {
+      "type": "string",
+      "description": "Required when amount is over 10000. Use CMP-DEMO-2026."
+    }
+  }
+}

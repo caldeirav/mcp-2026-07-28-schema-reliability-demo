@@ -6,6 +6,9 @@ alwaysApply: true
 Non-negotiable principles: `.specify/memory/constitution.md`
 (MCP 2026-07-28 stateless, JSON Schema 2020-12 FastMCP tools,
 LangGraph `-32602` repair, agent / gateway / tool layering).
+Current implementation plan: `specs/001-banking-fund-transfer/plan.md`
+(LangGraph ChatOpenAI via agentgateway :8080, FastMCP loopback,
+standalone agentgateway as LLM+MCP gateway, compare --contract).
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
 <!-- SPECKIT END -->

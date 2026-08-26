@@ -1,0 +1,3 @@
+Transfer $12,500 internally from account ACC1001 to account ACC2002.
+The published compliance approval code is CMP-DEMO-2026.
+Use transfer_type internal.
