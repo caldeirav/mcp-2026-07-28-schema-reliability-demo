@@ -12,6 +12,7 @@ from mcp_client import ToolCallResult, call_transfer_funds
 from repair import (
     COMPLIANCE_CODE,
     ERROR_32602,
+    ERROR_OTHER,
     apply_compliance_from_prompt,
     fingerprint,
     identical_retry_forbidden,
@@ -20,9 +21,25 @@ from report import ComparisonReport
 from state import AgentGraphState
 
 SYSTEM = (
-    "You are a banking operations agent. Call transfer_funds once using fields "
-    "from the user request. Do not invent extra identifiers."
+    "You are a banking operations agent. Call transfer_funds using fields "
+    "from the user request. Do not invent extra identifiers. On the first "
+    "call, send transfer_type, accounts, and amount only; do not send "
+    "compliance_approval_code until a validation error names that field."
 )
+
+
+def first_tool_arguments(args: dict[str, Any], repair_attempts: int) -> dict[str, Any]:
+    """First tools/call omits compliance_approval_code.
+
+    A capable local model often copies CMP-DEMO-2026 from the prompt on the
+    first try, which hides the legacy-vs-strict contrast. The comparison
+    withholds that field until a -32602 repair copies it from the prompt.
+    """
+    payload = dict(args)
+    if repair_attempts == 0:
+        payload.pop("compliance_approval_code", None)
+    return payload
+
 
 # Chat completions tool schema for the local model. MCP contract schemas live on
 # the FastMCP servers; this object only needs `properties` so LM Studio accepts it.
@@ -83,6 +100,24 @@ def build_graph(
         args = _tool_args_from_message(last) if isinstance(last, AIMessage) else None
         if args is None:
             args = dict(state.get("last_arguments") or {})
+        attempts = int(state.get("repair_attempts") or 0)
+        args = first_tool_arguments(args, attempts)
+        if attempts > 0:
+            prior = dict(state.get("last_arguments") or {})
+            code = prior.get("compliance_approval_code")
+            if code and not args.get("compliance_approval_code"):
+                args["compliance_approval_code"] = code
+        if identical_retry_forbidden(
+            state.get("last_payload_fingerprint"),
+            args,
+            str(state.get("last_error_kind") or ""),
+        ):
+            return {
+                "last_arguments": args,
+                "last_error_kind": ERROR_OTHER,
+                "last_error_message": "identical invalid payload retry forbidden",
+                "transfer_recorded": False,
+            }
         url = settings.mcp_url(state["contract_mode"])
         result = invoker(url, args)
         tool_id = "call-1"
@@ -135,10 +170,6 @@ def build_graph(
             return "end"
         budget = settings.repair_budget
         if int(state.get("repair_attempts") or 0) > budget:
-            return "end"
-        args = dict(state.get("last_arguments") or {})
-        prior = state.get("last_payload_fingerprint")
-        if identical_retry_forbidden(prior, args, kind):
             return "end"
         return "repair"
 

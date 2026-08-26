@@ -135,7 +135,7 @@ Gateway traces go to Jaeger (`frontendPolicies.tracing` → `:4317`). After `./s
 [strict] error_kind=none repair_attempts=1 recorded=yes transfer_id=…
 ```
 
-A capable local model may emit a legal payload on the first call on both routes. That still validates the data plane. The fail-then-repair contrast is covered by `tests/integration/test_compare_both.py`. Gateway traces in Jaeger should distinguish `/mcp/legacy`, `/mcp/strict`, and `/v1/chat/completions`.
+The first `tools/call` omits `compliance_approval_code` even if the model copied `CMP-DEMO-2026` from the prompt. That is the underspecified payload the two contracts are meant to distinguish: legacy stays opaque and does not record; strict returns `-32602` and the agent copies the code from the prompt. Gateway traces in Jaeger should distinguish `/mcp/legacy`, `/mcp/strict`, and `/v1/chat/completions`.
 
 ### Tests without the model
 
