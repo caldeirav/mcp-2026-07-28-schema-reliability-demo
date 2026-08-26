@@ -106,8 +106,17 @@ The committed `src/gateway/config.yaml` already enables LLM and MCP on `default`
 The Tool Playground is the live view of the same two MCP backends the agent uses. CORS is already set so the browser at `:15000` can call `:8080`.
 
 1. **Gateway Overview** — LLM and MCP should both show **Enabled**. MCP overview should list **2 configured servers**. Confirm routes `mcp-strict` (`/mcp/strict`) and `mcp-legacy` (`/mcp/legacy`).
-2. **LLM → Models** — `qwen/qwen3.8-27b` (custom, LM Studio). **Client Setup** should show base URL `http://127.0.0.1:8080/v1` (what LangGraph uses).
-3. **MCP → Servers** — `banking-strict` (`http://127.0.0.1:8001/mcp`) and `banking-legacy` (`http://127.0.0.1:8002/mcp`).
+
+   ![Gateway Overview with LLM and MCP enabled and two MCP servers](img/ui-overview.png)
+
+2. **LLM → Models** — `qwen/qwen3.8-27b` (custom, LM Studio) plus the `*` wildcard. **Client Setup** should show base URL `http://127.0.0.1:8080/v1` (what LangGraph uses).
+
+   ![LLM Models listing qwen/qwen3.8-27b and a wildcard custom provider](img/ui-models.png)
+
+3. **MCP → Servers** — `banking-strict` (`http://127.0.0.1:8001/mcp`) and `banking-legacy` (`http://127.0.0.1:8002/mcp`), both ready.
+
+   ![MCP Servers listing banking-strict on :8001 and banking-legacy on :8002](img/ui-servers.png)
+
 4. **MCP → Tool Playground**
    - If you see **Browser access is not allowed**, click **Apply CORS** (the committed config already allows `http://127.0.0.1:15000` and `http://localhost:15000`).
    - Select route **mcp-strict**, **Initialize**, confirm `transfer_funds` is listed. The federated `/mcp` listener prefixes tool names (`banking-strict_transfer_funds` / `banking-legacy_transfer_funds`); the agent still calls unprefixed `transfer_funds` on `/mcp/strict` and `/mcp/legacy`.
@@ -122,11 +131,19 @@ The Tool Playground is the live view of the same two MCP backends the agent uses
      }
      ```
 
-     Strict should fail validation (schema / invalid params). Repeat the same JSON on **mcp-legacy**: opaque reject, nothing recorded.
-   - Call again on **mcp-strict** with `"compliance_approval_code": "CMP-DEMO-2026"`. That call should succeed.
-5. Leave the UI open and run `./scripts/compare.sh both` in a terminal. Agent traffic uses the same routes; stdout is the labeled comparison. Playground calls and agent calls share the data plane on `:8080`.
+     Strict should fail validation (schema / invalid params): HTTP 200, `isError`, named missing `compliance_approval_code`.
 
-Gateway traces go to Jaeger (`frontendPolicies.tracing` → `:4317`). After `./scripts/compare.sh both`, open [http://127.0.0.1:16686](http://127.0.0.1:16686), service `banking-fund-transfer-gateway`, and confirm spans for `/mcp/legacy`, `/mcp/strict`, and `/v1/chat/completions`. The Admin UI does not replace Jaeger.
+     ![Strict playground reject: amount 12500 without a compliance code](img/ui-playground-strict-reject.png)
+
+     Repeat the same JSON on **mcp-legacy**: opaque `transfer rejected`, nothing recorded.
+
+     ![Legacy playground opaque reject for the same high-value payload](img/ui-playground-legacy-opaque.png)
+
+   - Call again on **mcp-strict** with `"compliance_approval_code": "CMP-DEMO-2026"`. That call should succeed and return a `transfer_id`.
+
+     ![Strict playground success after CMP-DEMO-2026 is supplied](img/ui-playground-strict-ok.png)
+
+5. Leave the UI open and run `./scripts/compare.sh both` in a terminal. Agent traffic uses the same routes; stdout is the labeled comparison. Playground calls and agent calls share the data plane on `:8080`.
 
 ### Expected output
 
@@ -138,7 +155,13 @@ Gateway traces go to Jaeger (`frontendPolicies.tracing` → `:4317`). After `./s
   2. POST /mcp/strict  http=200  rpc=-  args={transfer_type=internal, source_account=ACC1001, destination_account=ACC2002, amount=12500, compliance_approval_code=CMP-DEMO-2026}  resp=ok transfer_id=…
 ```
 
-The first `tools/call` omits `compliance_approval_code` even if the model copied `CMP-DEMO-2026` from the prompt. That is the underspecified payload the two contracts are meant to distinguish: legacy stays opaque and does not record; strict returns `-32602` and the agent copies the code from the prompt. Gateway traces in Jaeger should distinguish `/mcp/legacy`, `/mcp/strict`, and `/v1/chat/completions`.
+![compare.sh both: legacy opaque reject versus strict -32602 then repair](img/cli-compare-both.png)
+
+The first `tools/call` omits `compliance_approval_code` even if the model copied `CMP-DEMO-2026` from the prompt. That is the underspecified payload the two contracts are meant to distinguish: legacy stays opaque and does not record; strict returns `-32602` and the agent copies the code from the prompt.
+
+Gateway traces go to Jaeger (`frontendPolicies.tracing` → `:4317`). After `./scripts/compare.sh both`, open [http://127.0.0.1:16686](http://127.0.0.1:16686), service `banking-fund-transfer-gateway`, and confirm spans for `/mcp/legacy`, `/mcp/strict`, and `/v1/chat/completions`. The Admin UI does not replace Jaeger.
+
+![Jaeger compare view of POST /mcp/legacy versus POST /mcp/strict](img/jaeger-routes.png)
 
 ### Tests without the model
 
