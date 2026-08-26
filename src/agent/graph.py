@@ -17,7 +17,7 @@ from repair import (
     fingerprint,
     identical_retry_forbidden,
 )
-from report import ComparisonReport
+from report import ComparisonReport, hop_from_tool_result
 from state import AgentGraphState
 
 SYSTEM = (
@@ -81,9 +81,11 @@ def build_graph(
     *,
     call_fn: Callable[[str, dict[str, Any]], ToolCallResult] | None = None,
     llm: Any | None = None,
+    hops: list[Any] | None = None,
 ):
     invoker = call_fn or call_transfer_funds
     model = llm
+    traces = hops if hops is not None else []
 
     def model_node(state: AgentGraphState) -> dict[str, Any]:
         chat = model
@@ -120,6 +122,7 @@ def build_graph(
             }
         url = settings.mcp_url(state["contract_mode"])
         result = invoker(url, args)
+        traces.append(hop_from_tool_result(result))
         tool_id = "call-1"
         if isinstance(last, AIMessage) and last.tool_calls:
             tool_id = str(last.tool_calls[0].get("id") or tool_id)
@@ -200,7 +203,8 @@ def run_repair_loop(
     llm: Any | None = None,
 ) -> ComparisonReport:
     cfg = settings or load_settings()
-    graph = build_graph(cfg, call_fn=call_fn, llm=llm)
+    hops: list[Any] = []
+    graph = build_graph(cfg, call_fn=call_fn, llm=llm, hops=hops)
     state: AgentGraphState = {
         "messages": [
             SystemMessage(content=SYSTEM),
@@ -228,6 +232,7 @@ def run_repair_loop(
             if identical_retry_forbidden(last_fp, args, last_kind):
                 break
             result = invoker(url, args)
+            hops.append(hop_from_tool_result(result))
             last_kind = result.error_kind
             last_fp = fingerprint(args)
             if result.ok:
@@ -246,6 +251,7 @@ def run_repair_loop(
             repair_attempts=attempts,
             transfer_recorded=confirmation is not None,
             transfer_id=(confirmation or {}).get("transfer_id"),
+            hops=hops,
         )
     final = graph.invoke(state)
     confirmation = final.get("confirmation") or {}
@@ -255,4 +261,5 @@ def run_repair_loop(
         repair_attempts=int(final.get("repair_attempts") or 0),
         transfer_recorded=bool(final.get("transfer_recorded")),
         transfer_id=confirmation.get("transfer_id") if isinstance(confirmation, dict) else None,
+        hops=hops,
     )

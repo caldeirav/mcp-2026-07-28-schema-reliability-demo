@@ -132,7 +132,10 @@ Gateway traces go to Jaeger (`frontendPolicies.tracing` → `:4317`). After `./s
 
 ```text
 [legacy] error_kind=opaque repair_attempts=0 recorded=no transfer_id=-
+  1. POST /mcp/legacy  http=200  rpc=-  args={transfer_type=internal, source_account=ACC1001, destination_account=ACC2002, amount=12500}  resp="transfer rejected"
 [strict] error_kind=none repair_attempts=1 recorded=yes transfer_id=…
+  1. POST /mcp/strict  http=200  rpc=-32602  args={transfer_type=internal, source_account=ACC1001, destination_account=ACC2002, amount=12500}  resp="(root): 'compliance_approval_code' is a required property"
+  2. POST /mcp/strict  http=200  rpc=-  args={transfer_type=internal, source_account=ACC1001, destination_account=ACC2002, amount=12500, compliance_approval_code=CMP-DEMO-2026}  resp=ok transfer_id=…
 ```
 
 The first `tools/call` omits `compliance_approval_code` even if the model copied `CMP-DEMO-2026` from the prompt. That is the underspecified payload the two contracts are meant to distinguish: legacy stays opaque and does not record; strict returns `-32602` and the agent copies the code from the prompt. Gateway traces in Jaeger should distinguish `/mcp/legacy`, `/mcp/strict`, and `/v1/chat/completions`.

@@ -65,6 +65,7 @@ Stdout (and optional JSON) per invoked route.
 | `repair_attempts` | Integer 0–budget |
 | `transfer_recorded` | boolean |
 | `transfer_id` | Present iff recorded |
+| `hops` | One row per `tools/call`: path, HTTP status, JSON-RPC code, compact args, short response |
 
 ### GatewayTrace
 

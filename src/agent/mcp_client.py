@@ -24,6 +24,7 @@ class ToolCallResult:
     raw: dict[str, Any] = field(default_factory=dict)
     request_headers: dict[str, str] = field(default_factory=dict)
     url: str = ""
+    http_status: int | None = None
 
 
 def mcp_headers(method: str, name: str) -> dict[str, str]:
@@ -179,4 +180,5 @@ def call_transfer_funds(
         raw=payload,
         request_headers=headers,
         url=gateway_mcp_url,
+        http_status=response.status_code,
     )
