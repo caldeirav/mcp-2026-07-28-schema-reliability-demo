@@ -2,7 +2,7 @@
 
 A runnable comparison of **MCP as it is usually wired in a single application** versus **MCP 2026-07-28 as it has to behave behind an enterprise gateway**.
 
-The workload is a simulated `transfer_funds` tool. The same agent, model, and prompt hit two contracts: a description-only (legacy) schema that is typical of early MCP integrations, and a JSON Schema 2020-12 (strict) schema enforced at [agentgateway](https://agentgateway.dev/). Illegal transfers are never recorded. Run locally on loopback; LM Studio and an OTLP collector are assumed already running.
+The workload is a simulated `transfer_funds` tool. The same agent, model, and prompt hit two contracts: a description-only (legacy) schema that is typical of early MCP integrations, and a JSON Schema 2020-12 (strict) schema enforced at [agentgateway](https://agentgateway.dev/). Illegal transfers are never recorded. Run locally on loopback; LM Studio is assumed already running. Jaeger is started by this repo.
 
 ## 1. Background: development-time MCP vs MCP 2026-07-28 at scale
 
@@ -52,7 +52,7 @@ On **legacy**, an underspecified high-value call is not recorded; the error is o
 
 - Python 3.12+ and [`uv`](https://docs.astral.sh/uv/)
 - [LM Studio](https://lmstudio.ai/) serving `qwen/qwen3.8-27b` at `http://127.0.0.1:1234/v1`
-- Optional: OTLP collector (e.g. Jaeger) at `http://127.0.0.1:4317` — not started by this repo
+- [Docker](https://docs.docker.com/get-docker/) with Compose (for Jaeger all-in-one)
 - Network once for `./scripts/install_agentgateway.sh`
 
 Loopback only.
@@ -87,9 +87,11 @@ Do not set `CONTRACT_MODE`. Package changes: `uv add` / `uv remove`, then `uv sy
 | `127.0.0.1:15000/ui/` | agentgateway Admin UI |
 | `127.0.0.1:8001/mcp` | FastMCP strict |
 | `127.0.0.1:8002/mcp` | FastMCP legacy |
-| `127.0.0.1:4317` | OTLP (optional) |
+| `127.0.0.1:4317` | Jaeger OTLP gRPC (`./scripts/run_jaeger.sh`) |
+| `127.0.0.1:16686` | Jaeger UI |
 
 ```bash
+./scripts/run_jaeger.sh       # :4317 OTLP + UI :16686
 ./scripts/run_mcp.sh          # :8001 and :8002
 ./scripts/run_gateway.sh      # :8080 + Admin UI :15000
 ./scripts/compare.sh both     # or legacy | strict
@@ -124,7 +126,7 @@ The Tool Playground is the live view of the same two MCP backends the agent uses
    - Call again on **mcp-strict** with `"compliance_approval_code": "CMP-DEMO-2026"`. That call should succeed.
 5. Leave the UI open and run `./scripts/compare.sh both` in a terminal. Agent traffic uses the same routes; stdout is the labeled comparison. Playground calls and agent calls share the data plane on `:8080`.
 
-Optional: an OTLP collector on `:4317` still receives gateway traces (`/mcp/strict`, `/mcp/legacy`, `/v1/chat/completions`). The Admin UI does not replace that collector.
+Gateway traces go to Jaeger (`frontendPolicies.tracing` → `:4317`). After `./scripts/compare.sh both`, open [http://127.0.0.1:16686](http://127.0.0.1:16686), service `banking-fund-transfer-gateway`, and confirm spans for `/mcp/legacy`, `/mcp/strict`, and `/v1/chat/completions`. The Admin UI does not replace Jaeger.
 
 ### Expected output
 
@@ -133,7 +135,7 @@ Optional: an OTLP collector on `:4317` still receives gateway traces (`/mcp/stri
 [strict] error_kind=none repair_attempts=1 recorded=yes transfer_id=…
 ```
 
-A capable local model may emit a legal payload on the first call on both routes. That still validates the data plane. The fail-then-repair contrast is covered by `tests/integration/test_compare_both.py`. Gateway traces, if the collector is up, should distinguish `/mcp/legacy`, `/mcp/strict`, and `/v1/chat/completions`.
+A capable local model may emit a legal payload on the first call on both routes. That still validates the data plane. The fail-then-repair contrast is covered by `tests/integration/test_compare_both.py`. Gateway traces in Jaeger should distinguish `/mcp/legacy`, `/mcp/strict`, and `/v1/chat/completions`.
 
 ### Tests without the model
 

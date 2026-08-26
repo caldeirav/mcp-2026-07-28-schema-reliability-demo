@@ -9,7 +9,8 @@ One process is both the **LLM gateway** (OpenAI-compatible `/v1/chat/completions
 | `127.0.0.1:1234/v1` | LM Studio upstream |
 | `127.0.0.1:8001/mcp` | FastMCP strict (loopback only) |
 | `127.0.0.1:8002/mcp` | FastMCP legacy (loopback only) |
-| `127.0.0.1:4317` | OTLP collector (assumed running) |
+| `127.0.0.1:4317` | Jaeger OTLP gRPC (`./scripts/run_jaeger.sh`) |
+| `127.0.0.1:16686` | Jaeger UI |
 
 `config.adminAddr` is pinned to `127.0.0.1:15000`. The UI is **not** attached to gateway `default`, so `:8080` stays LLM/MCP only.
 
@@ -28,6 +29,7 @@ Uses `https://agentgateway.dev/install` with `--version` from `AGENTGATEWAY_VERS
 ## Run
 
 ```bash
+./scripts/run_jaeger.sh
 ./scripts/run_mcp.sh
 ./scripts/run_gateway.sh
 ```
@@ -41,4 +43,4 @@ Uses `https://agentgateway.dev/install` with `--version` from `AGENTGATEWAY_VERS
 - CEL `mcpAuthorization`: `transfer_funds` (or a prefixed form) or empty tool name (so `tools/list` / discover work in the playground)
 - Routes `/mcp/strict` and `/mcp/legacy` are path-prefix matches (playground does not send `Mcp-Method` / `Mcp-Name`; the LangGraph client still does)
 - CORS origins `http://127.0.0.1:15000` and `http://localhost:15000` for the Tool Playground
-- OTLP traces from the gateway (`frontendPolicies.tracing`)
+- OTLP traces from the gateway (`frontendPolicies.tracing`) to Jaeger `:4317`; inspect at `http://127.0.0.1:16686`

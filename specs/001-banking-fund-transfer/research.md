@@ -59,7 +59,7 @@
 
 ## Decision: Observability
 
-**Decision**: Script prints labeled per-route stdout (mode, error kind, repair count, recorded). agentgateway `frontendPolicies.tracing` exports OTLP gRPC to the collector in `.env` (default `127.0.0.1:4317`). Collector (Jaeger all-in-one) is assumed running; the demo does not start it. No agent-side tracer as source of truth.
+**Decision**: Script prints labeled per-route stdout (mode, error kind, repair count, recorded). agentgateway `frontendPolicies.tracing` exports OTLP gRPC to the collector in `.env` (default `127.0.0.1:4317`). Collector is Jaeger all-in-one started by `./scripts/run_jaeger.sh` (`compose.yaml`, UI `:16686`). No agent-side tracer as source of truth.
 
 **Rationale**: Spec FR-017, FR-018, SC-007.
 
@@ -77,7 +77,7 @@
 | agentgateway | `127.0.0.1:8080` |
 | FastMCP strict | `127.0.0.1:8001/mcp` (loopback only) |
 | FastMCP legacy | `127.0.0.1:8002/mcp` (loopback only) |
-| OTLP collector | `127.0.0.1:4317` (assumed) |
+| OTLP collector (Jaeger) | `127.0.0.1:4317` (gRPC), UI `127.0.0.1:16686` |
 | agentgateway admin UI | default (e.g. `15000`) if enabled; not required for the demo |
 
 Agent never calls `:8001`/`:8002` except in documented unit tests of tool logic.

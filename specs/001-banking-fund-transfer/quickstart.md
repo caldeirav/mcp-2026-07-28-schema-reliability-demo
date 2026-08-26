@@ -1,13 +1,13 @@
 # Quickstart: Enterprise Banking Fund Transfer Agent
 
-Laptop demo. Loopback only. Does not start LM Studio or Jaeger.
+Laptop demo. Loopback only. Does not start LM Studio. Starts Jaeger via Docker Compose.
 
 ## Prerequisites
 
 - Python 3.12+
 - `uv`
 - LM Studio serving `qwen/qwen3.8-27b` at `http://127.0.0.1:1234/v1`
-- OTLP collector (e.g. Jaeger all-in-one) at `http://127.0.0.1:4317`
+- Docker with Compose (Jaeger all-in-one at `127.0.0.1:4317`, UI `:16686`)
 - Network once to install the agentgateway binary
 
 ## Configure
@@ -31,15 +31,16 @@ uv sync
 ./scripts/install_agentgateway.sh
 ```
 
-## Run (three terminals)
+## Run (four terminals)
 
 ```bash
+./scripts/run_jaeger.sh       # Jaeger OTLP :4317 + UI :16686
 ./scripts/run_mcp.sh          # FastMCP strict :8001 and legacy :8002
 ./scripts/run_gateway.sh      # agentgateway -f src/gateway/config.yaml :8080
 ./scripts/compare.sh both     # runtime parameter: legacy | strict | both
 ```
 
-Expect labeled stdout: legacy opaque fail (not recorded), then strict `-32602` repair copying `CMP-DEMO-2026`, transfer recorded. Inspect gateway traces in the collector for both MCP routes (and the LLM hop).
+Expect labeled stdout: legacy opaque fail (not recorded), then strict `-32602` repair copying `CMP-DEMO-2026`, transfer recorded. Inspect gateway traces in Jaeger at `http://127.0.0.1:16686` for both MCP routes (and the LLM hop).
 
 ## Verify without the model
 
