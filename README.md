@@ -52,7 +52,7 @@ On **legacy**, an underspecified high-value call is not recorded; the error is o
 
 - Python 3.12+ and [`uv`](https://docs.astral.sh/uv/)
 - [LM Studio](https://lmstudio.ai/) serving `qwen/qwen3.8-27b` at `http://127.0.0.1:1234/v1`
-- [Docker](https://docs.docker.com/get-docker/) with Compose (for Jaeger all-in-one)
+- [Podman](https://podman.io/) (for Jaeger all-in-one). `./scripts/run_jaeger.sh` prefers `podman` and falls back to `docker` if that is what is on PATH. On macOS the script starts the Podman Linux VM if it is stopped (`podman machine start`).
 - Network once for `./scripts/install_agentgateway.sh`
 
 Loopback only.

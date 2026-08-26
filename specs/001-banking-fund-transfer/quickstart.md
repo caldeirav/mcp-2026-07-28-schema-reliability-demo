@@ -1,13 +1,13 @@
 # Quickstart: Enterprise Banking Fund Transfer Agent
 
-Laptop demo. Loopback only. Does not start LM Studio. Starts Jaeger via Docker Compose.
+Laptop demo. Loopback only. Does not start LM Studio. Starts Jaeger via Podman.
 
 ## Prerequisites
 
 - Python 3.12+
 - `uv`
 - LM Studio serving `qwen/qwen3.8-27b` at `http://127.0.0.1:1234/v1`
-- Docker with Compose (Jaeger all-in-one at `127.0.0.1:4317`, UI `:16686`)
+- Podman (Jaeger all-in-one at `127.0.0.1:4317`, UI `:16686`). `./scripts/run_jaeger.sh` starts the Podman VM if it is stopped, and falls back to Docker if Podman is absent.
 - Network once to install the agentgateway binary
 
 ## Configure

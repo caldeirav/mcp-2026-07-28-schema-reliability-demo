@@ -9,7 +9,7 @@ One process is both the **LLM gateway** (OpenAI-compatible `/v1/chat/completions
 | `127.0.0.1:1234/v1` | LM Studio upstream |
 | `127.0.0.1:8001/mcp` | FastMCP strict (loopback only) |
 | `127.0.0.1:8002/mcp` | FastMCP legacy (loopback only) |
-| `127.0.0.1:4317` | Jaeger OTLP gRPC (`./scripts/run_jaeger.sh`) |
+| `127.0.0.1:4317` | Jaeger OTLP gRPC (`./scripts/run_jaeger.sh`, Podman) |
 | `127.0.0.1:16686` | Jaeger UI |
 
 `config.adminAddr` is pinned to `127.0.0.1:15000`. The UI is **not** attached to gateway `default`, so `:8080` stays LLM/MCP only.

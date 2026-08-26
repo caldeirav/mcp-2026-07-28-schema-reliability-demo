@@ -59,7 +59,7 @@
 
 ## Decision: Observability
 
-**Decision**: Script prints labeled per-route stdout (mode, error kind, repair count, recorded). agentgateway `frontendPolicies.tracing` exports OTLP gRPC to the collector in `.env` (default `127.0.0.1:4317`). Collector is Jaeger all-in-one started by `./scripts/run_jaeger.sh` (`compose.yaml`, UI `:16686`). No agent-side tracer as source of truth.
+**Decision**: Script prints labeled per-route stdout (mode, error kind, repair count, recorded). agentgateway `frontendPolicies.tracing` exports OTLP gRPC to the collector in `.env` (default `127.0.0.1:4317`). Collector is Jaeger all-in-one started by `./scripts/run_jaeger.sh` (Podman `podman run`, UI `:16686`). No agent-side tracer as source of truth.
 
 **Rationale**: Spec FR-017, FR-018, SC-007.
 

@@ -26,7 +26,7 @@ Demonstrate that a small local model fails a legacy (description-only) `transfer
 
 **Performance Goals**: Single-operator demo; repair budget 3; no throughput SLO
 
-**Constraints**: MCP 2026-07-28 stateless Streamable HTTP; agentgateway `statefulMode: stateless`; no `Mcp-Session-Id` affinity; LM Studio already running; Jaeger started by `./scripts/run_jaeger.sh`; `.env` for endpoints/model; contract mode is CLI-only
+**Constraints**: MCP 2026-07-28 stateless Streamable HTTP; agentgateway `statefulMode: stateless`; no `Mcp-Session-Id` affinity; LM Studio already running; Jaeger started by `./scripts/run_jaeger.sh` (Podman); `.env` for endpoints/model; contract mode is CLI-only
 
 **Scale/Scope**: One tool (`transfer_funds`), two gateway routes, one comparison prompt family (high-value internal with `CMP-DEMO-2026` in the prompt)
 
