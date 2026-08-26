@@ -39,7 +39,7 @@ Keep **orchestration, governance, and execution** in separate processes. The age
 | Process | Responsibility |
 |---------|----------------|
 | LangGraph agent | Tool selection and a bounded repair loop that treats `-32602` as recoverable. Identical invalid payloads are forbidden. Opaque (non-validation) errors do not start repair. |
-| agentgateway `:8080` | LLM reverse proxy to LM Studio (`/v1`) and MCP reverse proxy (`/mcp/strict`, `/mcp/legacy`). Stateless MCP (`statefulMode: stateless`). CEL allows `transfer_funds`. Admin UI on `:15000`. OTLP from this process is the source of truth for traces. |
+| agentgateway `:8080` | LLM reverse proxy to LM Studio (`/v1`, model `qwen/qwen3.8-27b`) and MCP reverse proxy. Native `mcp:` targets (`banking-strict`, `banking-legacy`) plus agent routes `/mcp/strict` and `/mcp/legacy`. Stateless MCP (`statefulMode: stateless`). CEL allows `transfer_funds`. Admin UI on `:15000`. OTLP from this process is the source of truth for traces. |
 | FastMCP | Two servers, one tool name. Strict loads JSON Schema 2020-12 (`if`/`then`, `oneOf`, `$defs`). Legacy loads a weak, description-only schema and returns an opaque reject without recording. |
 
 Comparison is a **runtime parameter**, not configuration: `./scripts/compare.sh {legacy\|strict\|both}`. `.env` holds endpoints, model, repair budget, and gateway version only.
@@ -99,13 +99,16 @@ Open [http://127.0.0.1:15000/ui/](http://127.0.0.1:15000/ui/) after the gateway 
 
 ### Watch both contracts in the Admin UI
 
-The Tool Playground is the live view of the same two MCP routes the agent uses. CORS is already set so the browser at `:15000` can call `:8080`.
+The committed `src/gateway/config.yaml` already enables LLM and MCP on `default` (`:8080`). First open of the Admin UI should not require **Enable MCP** or adding a model.
 
-1. **Gateway Overview** — LLM and MCP should both be active on the `default` gateway (`:8080`). Confirm routes `mcp-strict` (`/mcp/strict`) and `mcp-legacy` (`/mcp/legacy`).
-2. **LLM** — Models should list the wildcard custom provider pointing at LM Studio. **Client Setup** should show base URL `http://127.0.0.1:8080/v1` (what LangGraph uses).
-3. **MCP → Tool Playground**
+The Tool Playground is the live view of the same two MCP backends the agent uses. CORS is already set so the browser at `:15000` can call `:8080`.
+
+1. **Gateway Overview** — LLM and MCP should both show **Enabled**. MCP overview should list **2 configured servers**. Confirm routes `mcp-strict` (`/mcp/strict`) and `mcp-legacy` (`/mcp/legacy`).
+2. **LLM → Models** — `qwen/qwen3.8-27b` (custom, LM Studio). **Client Setup** should show base URL `http://127.0.0.1:8080/v1` (what LangGraph uses).
+3. **MCP → Servers** — `banking-strict` (`http://127.0.0.1:8001/mcp`) and `banking-legacy` (`http://127.0.0.1:8002/mcp`).
+4. **MCP → Tool Playground**
    - If you see **Browser access is not allowed**, click **Apply CORS** (the committed config already allows `http://127.0.0.1:15000` and `http://localhost:15000`).
-   - Select route **mcp-strict**, **Initialize**, confirm `transfer_funds` is listed.
+   - Select route **mcp-strict**, **Initialize**, confirm `transfer_funds` is listed. The federated `/mcp` listener prefixes tool names (`banking-strict_transfer_funds` / `banking-legacy_transfer_funds`); the agent still calls unprefixed `transfer_funds` on `/mcp/strict` and `/mcp/legacy`.
    - Call `transfer_funds` with a high-value internal payload **without** a compliance code:
 
      ```json
@@ -119,7 +122,7 @@ The Tool Playground is the live view of the same two MCP routes the agent uses. 
 
      Strict should fail validation (schema / invalid params). Repeat the same JSON on **mcp-legacy**: opaque reject, nothing recorded.
    - Call again on **mcp-strict** with `"compliance_approval_code": "CMP-DEMO-2026"`. That call should succeed.
-4. Leave the UI open and run `./scripts/compare.sh both` in a terminal. Agent traffic uses the same routes; stdout is the labeled comparison. Playground calls and agent calls share the data plane on `:8080`.
+5. Leave the UI open and run `./scripts/compare.sh both` in a terminal. Agent traffic uses the same routes; stdout is the labeled comparison. Playground calls and agent calls share the data plane on `:8080`.
 
 Optional: an OTLP collector on `:4317` still receives gateway traces (`/mcp/strict`, `/mcp/legacy`, `/v1/chat/completions`). The Admin UI does not replace that collector.
 
